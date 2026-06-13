@@ -103,9 +103,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
-import type { InventoryRow, LocalOrderItem, OrderRow, ScanSummary, ProductScanStat } from '../../types';
+import type { LocalOrderItem, OrderRow, ScanSummary, ProductScanStat } from '../../types';
 import {
   findInventoryByRollCode,
   findScanDuplicate,

@@ -1,14 +1,33 @@
 {
-  "name": "腈纶出库扫码系统",
-  "appid": "__UNI__ACRYLIC_SCAN",
-  "description": "腈纶仓库出库扫码 APP",
-  "versionName": "0.1.0",
-  "versionCode": "1",
-  "app-plus": {
-    "permissions": {
-      "Camera": {
-        "description": "用于摄像头扫码"
-      }
+    "name" : "腈纶出库扫码系统",
+    "appid" : "__UNI__D86D5EC",
+    "description" : "腈纶仓库出库扫码 APP",
+    "versionName" : "0.1.0",
+    "versionCode" : "1",
+    "app-plus" : {
+        "modules" : {
+            "SQLite" : {}
+        },
+        "permissions" : {
+            "Camera" : {
+                "description" : "用于摄像头扫码"
+            }
+        },
+        "distribute" : {
+            "android" : {
+                "packagename" : "com.acrylic.scan",
+                "permissions" : [
+                    "<uses-permission android:name=\"android.permission.INTERNET\"/>",
+                    "<uses-permission android:name=\"android.permission.CAMERA\"/>",
+                    "<uses-permission android:name=\"android.permission.ACCESS_NETWORK_STATE\"/>",
+                    "<uses-permission android:name=\"android.permission.ACCESS_WIFI_STATE\"/>",
+                    "<uses-permission android:name=\"android.permission.READ_EXTERNAL_STORAGE\"/>",
+                    "<uses-permission android:name=\"android.permission.WRITE_EXTERNAL_STORAGE\"/>"
+                ]
+            },
+            "ios" : {
+                "dSYMs" : false
+            }
+        }
     }
-  }
 }

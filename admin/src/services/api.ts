@@ -1,4 +1,4 @@
-export const API_BASE = process.env.UMI_APP_API_BASE || 'http://localhost:7001/api';
+export const API_BASE = process.env.UMI_APP_API_BASE || 'http://114.67.203.242/acrylic/api';
 
 interface RequestOptions {
   method?: 'GET' | 'POST';
