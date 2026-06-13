@@ -228,19 +228,23 @@ const summary = computed<ScanSummary>(() => {
 
 function onBarcodeConfirm(event?: BarcodeConfirmEvent): void {
   const code = getConfirmBarcode(event);
-  barcode.value = '';
-  focusScannerInput();
-
   if (!code) {
+    focusScannerInput();
     return;
   }
 
+  barcode.value = '';
+  focusScannerInput();
+
   try {
     matchBarcodeSync(code);
+    playFeedback('success');
   } catch (e) {
+    barcode.value = code;
+    playFeedback('failure');
     uni.showToast({ title: (e as Error).message, icon: 'none', duration: 600 });
+    focusScannerInput();
   }
-
 }
 
 function getConfirmBarcode(event?: BarcodeConfirmEvent): string {
@@ -251,6 +255,20 @@ function focusScannerInput(): void {
   nextTick(() => {
     inputFocus.value = true;
   });
+}
+
+function playFeedback(type: 'success' | 'failure'): void {
+  if (typeof plus === 'undefined') return;
+  try {
+    const src = type === 'success' ? '/static/pass.wav' : '/static/fail.wav';
+    const player = plus.audio.createPlayer(src);
+    player.play(() => { /* done */ }, (err) => {
+      // WAV 播放失败兜底：系统蜂鸣
+      plus.device.beep(type === 'success' ? 1 : 2);
+    });
+  } catch (_) {
+    plus.device.beep(type === 'success' ? 1 : 2);
+  }
 }
 
 // 直接从内存缓存查库存/验重/maxSeq，零 Storage IO
@@ -404,6 +422,7 @@ async function handleSubmit(): Promise<void> {
   });
   if (!confirm) return;
 
+  flushLocalScanState();
   try {
     const result = await submitOrderItems(orderId.value, unsynced);
     await markScanItemsSynced(unsynced.map(it => it.client_item_id));
@@ -411,8 +430,10 @@ async function handleSubmit(): Promise<void> {
 
     let msg = '提交成功';
     if (result.overPlanned) msg += `（超发 ${result.overCount} 件）`;
+    playFeedback('success');
     uni.showToast({ title: msg, icon: 'success' });
   } catch (error) {
+    playFeedback('failure');
     uni.showToast({ title: error instanceof Error ? error.message : '提交失败', icon: 'none' });
   }
 }

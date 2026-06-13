@@ -24,7 +24,7 @@ class OrderExportService extends Service {
     sheet.addRow([ '序号', '型号', '条码号', '重量', '扫码人', '日期时间' ]);
     items.forEach(item => sheet.addRow([
       item.scan_seq,
-      item.model,
+      cleanModel(item.model),
       item.roll_code,
       Number(item.weight),
       item.operator,
@@ -36,6 +36,17 @@ class OrderExportService extends Service {
   formatDate(value) {
     return new Date(value).toLocaleString('zh-CN', { hour12: false });
   }
+}
+
+function cleanModel(raw) {
+  if (!raw) return raw;
+  const parts = raw.split(' ');
+  const cleaned = [];
+  for (const p of parts) {
+    if (/[\u4e00-\u9fff]/.test(p)) break;
+    cleaned.push(p);
+  }
+  return cleaned.join(' ');
 }
 
 module.exports = OrderExportService;

@@ -30,7 +30,13 @@ function parseParts(parts) {
   if (parts.length < 3) return null;
   const rawWeight = parts[parts.length - 1];
   const rollCode = parts[parts.length - 2];
-  const model = parts.slice(0, -2).join(' ');
+  // 型号只取非中文的前缀字段（去掉"有光短纤"等描述后缀）
+  const modelParts = [];
+  for (let i = 0; i < parts.length - 2; i++) {
+    if (/[\u4e00-\u9fff]/.test(parts[i])) break;
+    modelParts.push(parts[i]);
+  }
+  const model = modelParts.join(' ');
   const weight = Number(rawWeight);
 
   if (!isValidRow({ model, rollCode, weight })) return null;
