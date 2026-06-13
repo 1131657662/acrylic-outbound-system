@@ -61,13 +61,13 @@
         class="barcode-input"
         type="text"
         v-model="barcode"
-        :key="scanKey"
         @confirm="onBarcodeConfirm"
-        :focus="true"
+        :focus="inputFocus"
+        :confirm-hold="true"
         confirm-type="done"
         placeholder="扫描或输入条码"
       />
-      <button class="btn-confirm" size="mini" @click="onBarcodeConfirm">确定</button>
+      <button class="btn-confirm" size="mini" @click="onBarcodeConfirm()">确定</button>
       <button class="btn-camera" size="mini" @click="openCamera">扫码</button>
     </view>
 
@@ -106,27 +106,28 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
-import type { LocalOrderItem, OrderRow, ScanSummary, ProductScanStat } from '../../types';
+import type { InventoryRow, LocalOrderItem, OrderRow, ScanSummary, ProductScanStat } from '../../types';
 import {
-  findInventoryByRollCode,
-  findScanDuplicate,
-  getLocalInventory,
   getLocalOrders,
-  getMaxScanSeq,
   getScanItems,
   markScanItemsSynced,
   saveScanItem,
   deleteScanItem as delScanItem,
-  updateInventoryLocalStatus,
 } from '../../utils/local_db';
 import { submitOrderItems } from '../../services/submit';
 import { getUser, getToken } from '../../utils/storage';
+
+interface BarcodeConfirmEvent {
+  detail?: {
+    value?: string;
+  };
+}
 
 const orderId = ref(0);
 const order = ref<OrderRow | null>(null);
 const scanItems = ref<LocalOrderItem[]>([]);
 const barcode = ref('');
-const scanKey = ref(0);
+const inputFocus = ref(true);
 const showSummary = ref(false);
 
 onLoad((options?: Record<string, string>) => {
@@ -204,22 +205,50 @@ const summary = computed<ScanSummary>(() => {
   };
 });
 
-async function onBarcodeConfirm(): Promise<void> {
-  const code = barcode.value.trim();
-  if (!code) return;
-  barcode.value = '';
-
-  try {
-    await matchBarcode(code);
-  } catch (e) {
-    uni.showToast({ title: (e as Error).message, icon: 'none' });
+function onBarcodeConfirm(event?: BarcodeConfirmEvent): void {
+  const code = getConfirmBarcode(event);
+  if (!code) {
+    focusScannerInput();
+    return;
   }
 
-  // 强制重建 input 恢复焦点（key 变化触发 Vue 重新创建元素）
-  scanKey.value++;
+  try {
+    matchBarcodeSync(code);
+  } catch (e) {
+    uni.showToast({ title: (e as Error).message, icon: 'none', duration: 600 });
+  }
+
+  barcode.value = '';
+  focusScannerInput();
 }
 
-async function matchBarcode(rollCode: string): Promise<void> {
+function getConfirmBarcode(event?: BarcodeConfirmEvent): string {
+  return (event?.detail?.value ?? barcode.value).trim();
+}
+
+function focusScannerInput(): void {
+  nextTick(() => {
+    inputFocus.value = true;
+  });
+}
+
+// 直接从内存缓存查库存/验重/maxSeq，零 Storage IO
+function getCachedInventory(rollCode: string): { inv: InventoryRow; idx: number } | null {
+  const list: InventoryRow[] = uni.getStorageSync('acrylic_local_inventory') || [];
+  const idx = list.findIndex(row => row.roll_code === rollCode);
+  if (idx < 0 || list[idx].status !== 'available') return null;
+  return { inv: list[idx], idx };
+}
+
+function isDuplicateInMemory(orderId: number, rollCode: string): boolean {
+  return scanItems.value.some(it => it.roll_code === rollCode && it.status === 'active');
+}
+
+function getNextScanSeq(): number {
+  return scanItems.value.reduce((max, it) => Math.max(max, it.scan_seq), 0) + 1;
+}
+
+function matchBarcodeSync(rollCode: string): void {
   if (!order.value) throw new Error('订单数据未加载');
 
   // 1. 截取前3位作为 product_code
@@ -230,19 +259,15 @@ async function matchBarcode(rollCode: string): Promise<void> {
   const plan = (order.value.plans || []).find(p => p.product_code === productCode);
   if (!plan) throw new Error('产品代码 ' + productCode + ' 不属于本订单');
 
-  // 3. 查询本地库存
-  const inv = await findInventoryByRollCode(rollCode);
-  if (!inv || inv.status !== 'available') throw new Error('条码不存在或已出库');
+  // 3. 内存查库存（同步，零 IO）
+  const cached = getCachedInventory(rollCode);
+  if (!cached) throw new Error('条码不存在或已出库');
 
-  // 4. 查验重
-  const dup = await findScanDuplicate(orderId.value, rollCode);
-  if (dup) throw new Error('该卷已在本订单出库过 #' + dup.scan_seq);
+  // 4. 内存查验重（同步，零 IO）
+  if (isDuplicateInMemory(orderId.value, rollCode)) throw new Error('该卷已在本订单出库过');
 
-  // 5. 生成 scan_seq
-  const maxSeq = await getMaxScanSeq(orderId.value);
-  const scanSeq = maxSeq + 1;
-
-  // 6. 生成 client_item_id
+  // 5-6. 本地计算 scan_seq 和 client_item_id
+  const scanSeq = getNextScanSeq();
   const clientItemId = generateClientItemId();
 
   // 7. 获取操作人和设备
@@ -254,9 +279,9 @@ async function matchBarcode(rollCode: string): Promise<void> {
     client_item_id: clientItemId,
     order_id: orderId.value,
     product_code: productCode,
-    model: inv.model,
+    model: cached.inv.model,
     roll_code: rollCode,
-    weight: inv.weight,
+    weight: cached.inv.weight,
     scan_seq: scanSeq,
     scanned_at: now,
     status: 'active',
@@ -265,13 +290,16 @@ async function matchBarcode(rollCode: string): Promise<void> {
     operator: user?.username || 'unknown',
   };
 
-  // 8. 写入本地
-  await saveScanItem(item);
-  await updateInventoryLocalStatus(rollCode, 'shipped');
+  // 8. 内存即时追加（不等待 Storage 写完成）
+  scanItems.value.push(item);
 
-  // 9. 刷新
-  await loadScanItems();
-  uni.showToast({ title: '已扫 #' + scanSeq, icon: 'success', duration: 800 });
+  // 9. 同步更新库存 + 异步写 Storage（后台执行，不阻塞下一次扫码）
+  const invList: InventoryRow[] = uni.getStorageSync('acrylic_local_inventory') || [];
+  const invIdx = invList.findIndex(r => r.roll_code === rollCode);
+  if (invIdx >= 0) { invList[invIdx].status = 'shipped'; uni.setStorageSync('acrylic_local_inventory', invList); }
+  saveScanItem(item);
+
+  // 静默成功，不弹 Toast 干扰连续扫码
 }
 
 function generateClientItemId(): string {
@@ -294,15 +322,23 @@ function formatDateTime(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
-async function handleDeleteItem(item: LocalOrderItem): Promise<void> {
-  try {
-    await delScanItem(item.client_item_id);
-    await updateInventoryLocalStatus(item.roll_code, 'available');
-    await loadScanItems();
-    uni.showToast({ title: '已删除', icon: 'success' });
-  } catch (e) {
-    uni.showToast({ title: (e as Error).message, icon: 'none' });
+function handleDeleteItem(item: LocalOrderItem): void {
+  // 内存即时标记删除
+  const target = scanItems.value.find(it => it.client_item_id === item.client_item_id);
+  if (target) target.status = 'deleted';
+
+  // 恢复库存（内存）
+  const invList: InventoryRow[] = uni.getStorageSync('acrylic_local_inventory') || [];
+  const idx = invList.findIndex(row => row.roll_code === item.roll_code);
+  if (idx >= 0) {
+    invList[idx].status = 'available';
+    uni.setStorageSync('acrylic_local_inventory', invList);
   }
+
+  // 后台异步写 Storage
+  delScanItem(item.client_item_id);
+
+  uni.showToast({ title: '已删除', icon: 'success' });
 }
 
 function openCamera(): void {
