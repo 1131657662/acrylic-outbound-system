@@ -7,8 +7,8 @@
         <text class="top-title">扫码出库</text>
       </view>
       <view class="top-right">
-        <text class="top-action" @click="showSummary = true">汇总</text>
-        <text class="top-action submit-btn" @click="handleSubmit">提交</text>
+        <button class="top-btn" size="mini" type="default" @click="showSummary = true">汇总</button>
+        <button class="top-btn submit-btn" size="mini" type="primary" @click="handleSubmit">提交</button>
       </view>
     </view>
 
@@ -61,8 +61,9 @@
         class="barcode-input"
         type="text"
         v-model="barcode"
+        :key="scanKey"
         @confirm="onBarcodeConfirm"
-        :focus="inputFocus"
+        :focus="true"
         confirm-type="done"
         placeholder="扫描或输入条码"
       />
@@ -125,7 +126,7 @@ const orderId = ref(0);
 const order = ref<OrderRow | null>(null);
 const scanItems = ref<LocalOrderItem[]>([]);
 const barcode = ref('');
-const inputFocus = ref(true);
+const scanKey = ref(0);
 const showSummary = ref(false);
 
 onLoad((options?: Record<string, string>) => {
@@ -214,9 +215,8 @@ async function onBarcodeConfirm(): Promise<void> {
     uni.showToast({ title: (e as Error).message, icon: 'none' });
   }
 
-  nextTick(() => {
-    inputFocus.value = true;
-  });
+  // 强制重建 input 恢复焦点（key 变化触发 Vue 重新创建元素）
+  scanKey.value++;
 }
 
 async function matchBarcode(rollCode: string): Promise<void> {
@@ -389,12 +389,16 @@ function goBack(): void {
 
 .top-right {
   display: flex;
-  gap: 24rpx;
+  gap: 16rpx;
 }
 
-.top-action {
-  font-size: 28rpx;
-  color: #1677ff;
+.top-btn {
+  margin: 0;
+  height: 56rpx;
+  line-height: 56rpx;
+  padding: 0 20rpx;
+  font-size: 26rpx;
+  border-radius: 8rpx;
 }
 
 .submit-btn {

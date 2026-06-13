@@ -5,9 +5,6 @@
     "versionName" : "0.1.0",
     "versionCode" : "1",
     "app-plus" : {
-        "modules" : {
-            "SQLite" : {}
-        },
         "permissions" : {
             "Camera" : {
                 "description" : "用于摄像头扫码"

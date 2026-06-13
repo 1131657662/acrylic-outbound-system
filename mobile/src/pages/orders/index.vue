@@ -3,9 +3,12 @@
     <view class="header">
       <view>
         <text class="title">订单</text>
-        <text class="hint">仅显示待扫码和扫码中的订单</text>
+        <text class="hint">待扫码 / 扫码中</text>
       </view>
-      <button class="sync-button" size="mini" :loading="syncing" @click="handleSync">同步</button>
+      <view class="header-btns">
+        <button class="header-btn" size="mini" :loading="syncing" @click="handleSync">同步</button>
+        <button class="header-btn add-btn" size="mini" @click="goCreate">+</button>
+      </view>
     </view>
 
     <view v-if="orders.length === 0" class="empty">
@@ -55,6 +58,10 @@ onShow(() => {
   loadOrders();
 });
 
+function goCreate(): void {
+  uni.navigateTo({ url: '/pages/orders/create' });
+}
+
 function goScan(order: OrderRow): void {
   uni.navigateTo({ url: `/pages/orders/scan?id=${order.id}` });
 }
@@ -102,8 +109,24 @@ async function handleSync(): Promise<void> {
   font-size: 24rpx;
 }
 
-.sync-button {
+.header-btns {
+  display: flex;
+  gap: 12rpx;
+}
+
+.header-btn {
   margin: 0;
+}
+
+.add-btn {
+  background: #1677ff;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 32rpx;
+  width: 64rpx;
+  height: 56rpx;
+  line-height: 56rpx;
+  padding: 0;
 }
 
 .empty {

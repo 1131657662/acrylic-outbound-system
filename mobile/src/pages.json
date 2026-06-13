@@ -15,6 +15,10 @@
     {
       "path": "pages/orders/scan",
       "style": { "navigationBarTitleText": "扫码出库" }
+    },
+    {
+      "path": "pages/orders/create",
+      "style": { "navigationBarTitleText": "创建订单" }
     }
   ],
   "tabBar": {
