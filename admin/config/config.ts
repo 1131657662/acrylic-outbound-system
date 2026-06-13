@@ -16,6 +16,7 @@ export default defineConfig({
   history: {
     type: 'hash',
   },
+  publicPath: './',
   routes: [
     { path: '/', redirect: '/orders' },
     { path: '/login', component: './login', layout: false },

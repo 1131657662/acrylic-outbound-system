@@ -26,7 +26,7 @@ export function clearSession(): void {
 }
 
 export function getApiBase(): string {
-  return uni.getStorageSync(API_BASE_KEY) || 'http://127.0.0.1:7001/api';
+  return uni.getStorageSync(API_BASE_KEY) || 'http://114.67.203.242/acrylic/api';
 }
 
 export function setApiBase(value: string): void {
