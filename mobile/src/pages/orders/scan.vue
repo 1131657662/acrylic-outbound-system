@@ -258,16 +258,14 @@ function focusScannerInput(): void {
 }
 
 function playFeedback(type: 'success' | 'failure'): void {
-  if (typeof plus === 'undefined') return;
   try {
-    const src = type === 'success' ? '/static/pass.wav' : '/static/fail.wav';
-    const player = plus.audio.createPlayer(src);
-    player.play(() => { /* done */ }, (err) => {
-      // WAV 播放失败兜底：系统蜂鸣
-      plus.device.beep(type === 'success' ? 1 : 2);
-    });
+    const audio = uni.createInnerAudioContext();
+    audio.src = type === 'success' ? '/static/pass.wav' : '/static/fail.wav';
+    audio.autoplay = true;
+    audio.onError(() => { audio.destroy(); });
+    audio.onEnded(() => { audio.destroy(); });
   } catch (_) {
-    plus.device.beep(type === 'success' ? 1 : 2);
+    // 静默忽略
   }
 }
 
