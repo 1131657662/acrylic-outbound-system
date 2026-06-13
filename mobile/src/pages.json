@@ -1,0 +1,26 @@
+{
+  "pages": [
+    {
+      "path": "pages/login/index",
+      "style": { "navigationBarTitleText": "登录" }
+    },
+    {
+      "path": "pages/orders/index",
+      "style": { "navigationBarTitleText": "订单" }
+    },
+    {
+      "path": "pages/mine/index",
+      "style": { "navigationBarTitleText": "我的" }
+    },
+    {
+      "path": "pages/orders/scan",
+      "style": { "navigationBarTitleText": "扫码出库" }
+    }
+  ],
+  "tabBar": {
+    "list": [
+      { "pagePath": "pages/orders/index", "text": "订单" },
+      { "pagePath": "pages/mine/index", "text": "我的" }
+    ]
+  }
+}

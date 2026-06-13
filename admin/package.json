@@ -1,0 +1,20 @@
+{
+  "name": "acrylic-outbound-admin",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "max dev",
+    "build": "max build",
+    "serve": "node scripts/serve-dist.js"
+  },
+  "dependencies": {
+    "@ant-design/pro-components": "^2.8.0",
+    "@umijs/max": "^4.4.0",
+    "antd": "^5.26.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0"
+  }
+}

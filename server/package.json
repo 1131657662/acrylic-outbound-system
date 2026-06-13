@@ -1,0 +1,35 @@
+{
+  "name": "acrylic-outbound-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Egg.js API for acrylic outbound scan system",
+  "scripts": {
+    "dev": "egg-bin dev",
+    "start": "egg-scripts start --daemon --title=acrylic-outbound-server",
+    "stop": "egg-scripts stop --title=acrylic-outbound-server",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "egg": "^3.28.0",
+    "egg-mysql": "^4.0.0",
+    "egg-scripts": "^2.17.0",
+    "exceljs": "^4.4.0",
+    "jsonwebtoken": "^9.0.2",
+    "nanoid": "^3.3.7",
+    "safe-stable-stringify": "^2.5.0"
+  },
+  "devDependencies": {
+    "egg-bin": "^6.10.0",
+    "eslint": "^8.57.0",
+    "eslint-config-egg": "^12.1.0"
+  },
+  "overrides": {
+    "serialize-javascript": "7.0.5",
+    "undici": "8.4.1",
+    "uuid": "11.1.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

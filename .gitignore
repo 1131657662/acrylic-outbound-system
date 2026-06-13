@@ -1,0 +1,12 @@
+.env
+node_modules/
+dist/
+build/
+coverage/
+*.log
+.DS_Store
+admin/src/.umi-production/
+admin/src/.umi/
+server/run/
+server/logs/
+server/database/*.sqlite

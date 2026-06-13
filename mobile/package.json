@@ -1,0 +1,8 @@
+{
+  "name": "acrylic-outbound-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev:hbuilderx": "echo Open this folder with HBuilderX and run to Android or H5"
+  }
+}
