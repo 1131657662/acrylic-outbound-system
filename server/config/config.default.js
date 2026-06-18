@@ -26,6 +26,7 @@ module.exports = appInfo => {
     enable: true,
     jsonLimit: '1mb',
     formLimit: '1mb',
+    json: { strict: false },
   };
 
   config.mysql = {
