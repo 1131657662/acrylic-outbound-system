@@ -29,8 +29,9 @@ module.exports = appInfo => {
   };
 
   config.multipart = {
-    mode: 'file',
+    mode: 'stream',
     fileSize: '50mb',
+    enable: false,
   };
 
   config.mysql = {
