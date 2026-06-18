@@ -1,4 +1,5 @@
 <template>
+  <NetworkBar />
   <view class="page">
     <view class="header">
       <view>
@@ -11,14 +12,22 @@
       </view>
     </view>
 
-    <view v-if="orders.length === 0" class="empty">
-      <text>暂无本地订单，请先同步数据</text>
+    <!-- 搜索栏 -->
+    <view class="search-bar">
+      <input v-model="searchKeyword" class="search-input" placeholder="搜索订单号或车牌号" />
     </view>
 
-    <view v-for="order in orders" :key="order.id" class="order-card" @click="goScan(order)">
+    <view v-if="filteredOrders.length === 0" class="empty">
+      <text class="empty-icon">📦</text>
+      <text class="empty-title">暂无订单</text>
+      <text class="empty-hint">点击右上角「同步」获取订单</text>
+    </view>
+
+    <view v-for="order in filteredOrders" :key="order.id" class="order-card"
+      :style="{ borderLeftColor: statusColor[order.status] }" @click="goScan(order)">
       <view class="order-row">
         <text class="order-no">{{ order.order_no }}</text>
-        <text class="status">{{ statusText[order.status] }}</text>
+        <text class="status" :class="'status-' + order.status">{{ statusText[order.status] }}</text>
       </view>
       <view class="meta-row">
         <text>车牌：{{ order.vehicle_no }}</text>
@@ -34,8 +43,9 @@
 </template>
 
 <script setup lang="ts">
-import { onShow } from '@dcloudio/uni-app';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
+import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
+import NetworkBar from '../../components/NetworkBar.vue';
 import { localOrders } from '../../services/orders';
 import { syncAll } from '../../services/sync';
 import type { OrderRow } from '../../types';
@@ -43,12 +53,28 @@ import { getToken } from '../../utils/storage';
 
 const orders = ref<OrderRow[]>([]);
 const syncing = ref(false);
+const searchKeyword = ref('');
 const statusText: Record<OrderRow['status'], string> = {
   pending: '待扫码',
   scanning: '扫码中',
   completed: '已完成',
   cancelled: '已取消',
 };
+const statusColor: Record<string, string> = {
+  pending:   '#fa8c16',
+  scanning:  '#1677ff',
+  completed: '#52c41a',
+  cancelled: '#9ca3af',
+};
+
+const filteredOrders = computed(() => {
+  if (!searchKeyword.value) return orders.value;
+  const kw = searchKeyword.value.toLowerCase();
+  return orders.value.filter(o =>
+    o.order_no.toLowerCase().includes(kw) ||
+    o.vehicle_no.toLowerCase().includes(kw)
+  );
+});
 
 onShow(() => {
   if (!getToken()) {
@@ -56,6 +82,11 @@ onShow(() => {
     return;
   }
   loadOrders();
+});
+
+onPullDownRefresh(async () => {
+  await handleSync();         // handleSync 内部已调用 loadOrders()
+  uni.stopPullDownRefresh();
 });
 
 function goCreate(): void {
@@ -98,15 +129,15 @@ async function handleSync(): Promise<void> {
 
 .title {
   display: block;
-  font-size: 36rpx;
+  font-size: 34rpx;
   font-weight: 600;
 }
 
 .hint {
   display: block;
   margin-top: 8rpx;
-  color: #666;
-  font-size: 24rpx;
+  color: #6b7280;
+  font-size: 26rpx;
 }
 
 .header-btns {
@@ -123,25 +154,56 @@ async function handleSync(): Promise<void> {
   color: #ffffff;
   font-weight: 700;
   font-size: 32rpx;
-  width: 64rpx;
-  height: 56rpx;
-  line-height: 56rpx;
+  width: 72rpx;
+  height: 64rpx;
+  line-height: 64rpx;
   padding: 0;
 }
 
-.empty {
-  padding: 48rpx 24rpx;
-  border-radius: 12rpx;
+/* 搜索栏 */
+.search-bar {
+  padding: 0 0 16rpx;
+}
+.search-input {
+  height: 64rpx;
+  padding: 0 20rpx;
+  border: 1px solid #d9dee8;
+  border-radius: 8rpx;
   background: #ffffff;
-  color: #6b7280;
-  text-align: center;
+  font-size: 26rpx;
 }
 
-.order-card {
-  margin-bottom: 20rpx;
-  padding: 24rpx;
+/* 空状态 */
+.empty {
+  padding: 96rpx 24rpx;
   border-radius: 12rpx;
   background: #ffffff;
+  text-align: center;
+}
+.empty-icon {
+  display: block;
+  font-size: 64rpx;
+  margin-bottom: 16rpx;
+}
+.empty-title {
+  display: block;
+  font-size: 30rpx;
+  color: #1f2329;
+  font-weight: 600;
+  margin-bottom: 8rpx;
+}
+.empty-hint {
+  font-size: 26rpx;
+  color: #6b7280;
+}
+
+/* 订单卡片 */
+.order-card {
+  margin-bottom: 14rpx;
+  padding: 20rpx;
+  border-radius: 12rpx;
+  background: #ffffff;
+  border-left: 3rpx solid transparent;
 }
 
 .order-row,
@@ -152,19 +214,22 @@ async function handleSync(): Promise<void> {
 
 .order-no {
   color: #111827;
-  font-size: 30rpx;
+  font-size: 32rpx;
   font-weight: 700;
 }
 
 .status {
-  color: #1677ff;
-  font-size: 24rpx;
+  font-size: 26rpx;
 }
+.status-pending   { color: #fa8c16; }
+.status-scanning  { color: #1677ff; }
+.status-completed { color: #52c41a; }
+.status-cancelled { color: #9ca3af; }
 
 .meta-row {
   margin-top: 18rpx;
   color: #4b5563;
-  font-size: 26rpx;
+  font-size: 28rpx;
 }
 
 .plan-list {
@@ -175,6 +240,6 @@ async function handleSync(): Promise<void> {
   display: block;
   margin-top: 8rpx;
   color: #6b7280;
-  font-size: 24rpx;
+  font-size: 26rpx;
 }
 </style>

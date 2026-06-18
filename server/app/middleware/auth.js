@@ -22,3 +22,15 @@ module.exports = () => {
     }
   };
 };
+
+module.exports.adminOnly = () => {
+  return async function adminOnly(ctx, next) {
+    const user = ctx.state.user;
+    if (!user || user.role !== 'admin') {
+      ctx.status = 403;
+      ctx.body = { message: '需要管理员权限' };
+      return;
+    }
+    await next();
+  };
+};

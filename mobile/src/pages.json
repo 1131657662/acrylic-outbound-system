@@ -2,11 +2,19 @@
   "pages": [
     {
       "path": "pages/login/index",
-      "style": { "navigationBarTitleText": "登录" }
+      "style": {
+        "navigationBarTitleText": "登录",
+        "app-plus": {
+          "softinputMode": "adjustResize"
+        }
+      }
     },
     {
       "path": "pages/orders/index",
-      "style": { "navigationBarTitleText": "订单" }
+      "style": {
+        "navigationBarTitleText": "订单",
+        "enablePullDownRefresh": true
+      }
     },
     {
       "path": "pages/mine/index",
@@ -14,17 +22,33 @@
     },
     {
       "path": "pages/orders/scan",
-      "style": { "navigationBarTitleText": "扫码出库" }
+      "style": {
+        "navigationBarTitleText": "扫码出库",
+        "navigationStyle": "custom"
+      }
     },
     {
       "path": "pages/orders/create",
-      "style": { "navigationBarTitleText": "创建订单" }
+      "style": {
+        "navigationBarTitleText": "创建订单",
+        "navigationStyle": "custom"
+      }
     }
   ],
   "tabBar": {
     "list": [
-      { "pagePath": "pages/orders/index", "text": "订单" },
-      { "pagePath": "pages/mine/index", "text": "我的" }
+      {
+        "pagePath": "pages/orders/index",
+        "text": "订单",
+        "iconPath": "/static/tab-order.png",
+        "selectedIconPath": "/static/tab-order-active.png"
+      },
+      {
+        "pagePath": "pages/mine/index",
+        "text": "我的",
+        "iconPath": "/static/tab-mine.png",
+        "selectedIconPath": "/static/tab-mine-active.png"
+      }
     ]
   }
 }

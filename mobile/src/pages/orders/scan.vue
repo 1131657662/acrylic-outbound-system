@@ -1,14 +1,16 @@
 <template>
+  <NetworkBar />
   <view class="page">
     <!-- 顶部栏 -->
-    <view class="top-bar">
+    <view class="top-bar" :style="{ paddingTop: (16 + statusBarHeight) + 'px' }">
       <view class="top-left" @click="goBack">
         <text class="back-icon">←</text>
         <text class="top-title">扫码出库</text>
       </view>
       <view class="top-right">
         <button class="top-btn" size="mini" type="default" @click="showSummary = true">汇总</button>
-        <button class="top-btn submit-btn" size="mini" type="primary" @click="handleSubmit">提交</button>
+        <button class="top-btn submit-btn" size="mini" type="primary"
+          :disabled="submitting" :loading="submitting" @click="handleSubmit">提交</button>
       </view>
     </view>
 
@@ -37,28 +39,41 @@
     </view>
 
     <!-- 扫码记录列表 -->
-    <scroll-view class="scan-list" scroll-y>
+    <scroll-view class="scan-list" :style="{ height: scanListHeight }" scroll-y>
       <view v-if="scanItems.length === 0" class="empty-hint">
         <text>等待扫码…</text>
       </view>
-      <view v-for="item in scanItems" :key="item.client_item_id" class="scan-item"
-        :class="{ deleted: item.status === 'deleted' }">
-        <view class="scan-item-left">
-          <text class="scan-code">{{ item.product_code }} · {{ item.roll_code }}</text>
-          <text class="scan-meta">{{ item.model }} | {{ Number(item.weight).toFixed(3) }} kg</text>
-          <text class="scan-meta">#{{ item.scan_seq }} · {{ item.scanned_at }}</text>
+
+      <!-- active 条目：支持左滑 -->
+      <view class="scan-item" v-for="item in activeScanItems" :key="item.client_item_id"
+        :ref="(el: any) => { if (el) scanItemEls.value[item.client_item_id] = { contentEl: el.querySelector('.scan-item-content') }; }">
+        <view class="swipe-delete-btn" @click.stop="handleDeleteItem(item)">删除</view>
+        <view class="scan-item-content"
+          @touchstart="onSwipeStart($event, item.client_item_id)"
+          @touchmove="onSwipeMove($event, item.client_item_id)"
+          @touchend="onSwipeEnd($event, item.client_item_id)"
+          :style="{ transform: 'translateX(' + swipePx(item.client_item_id) + 'px)' }">
+          <view class="scan-item-left">
+            <text class="scan-code">{{ item.product_code }} · {{ item.roll_code }}</text>
+            <text class="scan-meta">{{ item.model }} | {{ Number(item.weight).toFixed(3) }} kg</text>
+            <text class="scan-meta">#{{ item.scan_seq }} · {{ item.scanned_at }}</text>
+          </view>
         </view>
-        <view v-if="item.status === 'active'" class="scan-item-right">
-          <text class="delete-btn" @click="handleDeleteItem(item)">×</text>
-        </view>
+        <text style="display:none">{{ swipeVersion }}</text>
+      </view>
+
+      <!-- deleted 条目：折叠态 -->
+      <view class="scan-item deleted-item" v-for="item in deletedScanItems" :key="item.client_item_id">
+        <text class="deleted-label">已删除 — {{ item.product_code }} · {{ item.roll_code }}</text>
       </view>
     </scroll-view>
 
     <!-- 底部输入区 -->
-    <view class="bottom-bar">
+    <view class="bottom-bar" :class="{ 'bottom-bar-row': !isTwoRowMode }">
       <input
         ref="barcodeInput"
         class="barcode-input"
+        :class="{ 'input-error': inputError }"
         type="text"
         v-model="barcode"
         @confirm="onBarcodeConfirm"
@@ -67,16 +82,17 @@
         confirm-type="done"
         placeholder="扫描或输入条码"
       />
-      <button class="btn-confirm" size="mini" @click="onBarcodeConfirm()">确定</button>
-      <button class="btn-camera" size="mini" @click="openCamera">扫码</button>
+      <view class="bottom-btns">
+        <button class="btn-confirm" size="mini" @click="onBarcodeConfirm()">确定</button>
+        <button class="btn-camera" size="mini" @click="openCamera">扫码</button>
+      </view>
     </view>
 
     <!-- 汇总弹窗 -->
-    <view v-if="showSummary" class="overlay" @click="showSummary = false">
+    <view v-if="showSummary" class="overlay" @click="showSummary = false" @touchmove.stop.prevent>
       <view class="popup" @click.stop>
         <view class="popup-header">
           <text class="popup-title">汇总统计</text>
-          <text class="popup-close" @click="showSummary = false">×</text>
         </view>
         <view class="popup-body">
           <view class="summary-row">
@@ -98,6 +114,7 @@
             <text class="ps-diff" :class="p.diff_qty > 0 ? 'over' : ''">差异 {{ p.diff_qty > 0 ? '+' : '' }}{{ p.diff_qty }} 件</text>
           </view>
         </view>
+        <view class="popup-close-btn" @click="showSummary = false">关闭</view>
       </view>
     </view>
   </view>
@@ -105,6 +122,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue';
+import NetworkBar from '../../components/NetworkBar.vue';
 import { onHide, onLoad, onUnload } from '@dcloudio/uni-app';
 import type { InventoryRow, LocalOrderItem, OrderRow, ScanSummary, ProductScanStat } from '../../types';
 import {
@@ -132,12 +150,22 @@ const scanItems = ref<LocalOrderItem[]>([]);
 const barcode = ref('');
 const inputFocus = ref(true);
 const showSummary = ref(false);
+const statusBarHeight = ref(0);
+const submitting = ref(false);
+const keyboardHeight = ref(0);
+const isTwoRowMode = computed(() => keyboardHeight.value === 0);
+const inputError = ref(false);
+const activeScanItems = computed(() => scanItems.value.filter(it => it.status === 'active'));
+const deletedScanItems = computed(() => scanItems.value.filter(it => it.status === 'deleted'));
+const scanListHeight = ref('100vh');
 let inventoryCache: InventoryRow[] = [];
 let inventoryByRoll = new Map<string, InventoryRow>();
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
 let hasPendingPersist = false;
 
 onLoad((options?: Record<string, string>) => {
+  statusBarHeight.value = uni.getSystemInfoSync().statusBarHeight || 0;
+  uni.onKeyboardHeightChange((res) => { keyboardHeight.value = res.height; });
   if (!getToken()) {
     uni.reLaunch({ url: '/pages/login/index' });
     return;
@@ -152,6 +180,7 @@ onLoad((options?: Record<string, string>) => {
 
 onUnload(() => {
   flushLocalScanState();
+  uni.offKeyboardHeightChange();
 });
 
 onHide(() => {
@@ -162,6 +191,17 @@ async function initPage(): Promise<void> {
   await loadOrder();
   await loadScanItems();
   await loadInventoryCache();
+  nextTick(() => {
+    const query = uni.createSelectorQuery();
+    query.select('.top-bar').boundingClientRect();
+    query.select('.card').boundingClientRect();
+    query.select('.progress-bar').boundingClientRect();
+    query.select('.bottom-bar').boundingClientRect();
+    query.exec((results) => {
+      const totalFixed = results.reduce((sum, r) => sum + ((r as any)?.height || 0), 0);
+      scanListHeight.value = `calc(100vh - ${totalFixed}px)`;
+    });
+  });
 }
 
 async function loadOrder(): Promise<void> {
@@ -244,6 +284,8 @@ function onBarcodeConfirm(event?: BarcodeConfirmEvent): void {
     playFeedback('failure');
     uni.showToast({ title: (e as Error).message, icon: 'none', duration: 600 });
     focusScannerInput();
+    inputError.value = true;
+    setTimeout(() => { inputError.value = false; }, 300);
   }
 }
 
@@ -257,13 +299,21 @@ function focusScannerInput(): void {
   });
 }
 
+let feedbackAudio: ReturnType<typeof uni.createInnerAudioContext> | null = null;
+
 function playFeedback(type: 'success' | 'failure'): void {
   try {
-    const audio = uni.createInnerAudioContext();
-    audio.src = type === 'success' ? '/static/pass.wav' : '/static/fail.wav';
-    audio.autoplay = true;
-    audio.onError(() => { audio.destroy(); });
-    audio.onEnded(() => { audio.destroy(); });
+    if (!feedbackAudio) {
+      feedbackAudio = uni.createInnerAudioContext();
+      feedbackAudio.onEnded(() => { /* 复用，不销毁 */ });
+      feedbackAudio.onError(() => {
+        feedbackAudio?.destroy();
+        feedbackAudio = null; // 下次调用时重建
+      });
+    }
+    feedbackAudio.stop();
+    feedbackAudio.src = type === 'success' ? '/static/pass.wav' : '/static/fail.wav';
+    feedbackAudio.play();
   } catch (_) {
     // 静默忽略
   }
@@ -389,6 +439,52 @@ function handleDeleteItem(item: LocalOrderItem): void {
   uni.showToast({ title: '已删除', icon: 'success' });
 }
 
+// --- 左滑删除手势 ---
+const screenWidth = uni.getSystemInfoSync().screenWidth;
+const rpx2px = (v: number) => v * (screenWidth / 750);
+const DELETE_WIDTH = rpx2px(120);
+const SNAP_THRESHOLD = rpx2px(50);
+
+const swipeState = { startX: 0, currentId: '' as string };
+const swipeOffset: Record<string, number> = {};
+const swipeVersion = ref(0);
+const scanItemEls = ref<Record<string, { contentEl: HTMLElement }>>({});
+
+function swipePx(id: string): number {
+  return Math.round(swipeOffset[id] || 0);
+}
+
+function getScanItemEl(id: string): HTMLElement | null {
+  return scanItemEls.value[id]?.contentEl || null;
+}
+
+function onSwipeStart(e: TouchEvent, id: string): void {
+  swipeState.startX = e.touches[0].clientX;
+  swipeState.currentId = id;
+  Object.keys(swipeOffset).forEach(key => {
+    if (key !== id && swipeOffset[key] !== 0) swipeOffset[key] = 0;
+  });
+  swipeVersion.value++;
+}
+
+function onSwipeMove(e: TouchEvent, id: string): void {
+  if (id !== swipeState.currentId) return;
+  const deltaX = e.touches[0].clientX - swipeState.startX;
+  if (deltaX > 0) return;
+  const offset = Math.max(-DELETE_WIDTH, deltaX);
+  swipeOffset[id] = offset;
+  const el = getScanItemEl(id);
+  if (el) el.style.transform = `translateX(${Math.round(offset)}px)`;
+}
+
+function onSwipeEnd(_e: TouchEvent, id: string): void {
+  if (id !== swipeState.currentId) return;
+  swipeOffset[id] = Math.abs(swipeOffset[id]) > SNAP_THRESHOLD ? -DELETE_WIDTH : 0;
+  swipeState.currentId = '';
+  swipeVersion.value++;
+}
+// --- 左滑删除结束 ---
+
 function openCamera(): void {
   uni.scanCode({
     success: res => {
@@ -410,18 +506,19 @@ async function handleSubmit(): Promise<void> {
     return;
   }
 
-  const confirmText = overPlanned.value
-    ? `已超发 ${overCount.value} 件，确认提交？`
-    : `确认提交 ${unsynced.length} 条扫码记录？`;
-
-  const { confirm } = await uni.showModal({
-    title: '提交确认',
-    content: confirmText,
-  });
-  if (!confirm) return;
-
-  flushLocalScanState();
+  submitting.value = true;
   try {
+    const confirmText = overPlanned.value
+      ? `已超发 ${overCount.value} 件，确认提交？`
+      : `确认提交 ${unsynced.length} 条扫码记录？`;
+
+    const { confirm } = await uni.showModal({
+      title: '提交确认',
+      content: confirmText,
+    });
+    if (!confirm) return;
+
+    flushLocalScanState();
     const result = await submitOrderItems(orderId.value, unsynced);
     await markScanItemsSynced(unsynced.map(it => it.client_item_id));
     await loadScanItems();
@@ -433,6 +530,8 @@ async function handleSubmit(): Promise<void> {
   } catch (error) {
     playFeedback('failure');
     uni.showToast({ title: error instanceof Error ? error.message : '提交失败', icon: 'none' });
+  } finally {
+    submitting.value = false;
   }
 }
 
@@ -465,7 +564,7 @@ function goBack(): void {
 
 .back-icon {
   color: #1677ff;
-  font-size: 36rpx;
+  font-size: 44rpx;
   font-weight: 700;
   margin-right: 12rpx;
 }
@@ -483,8 +582,8 @@ function goBack(): void {
 
 .top-btn {
   margin: 0;
-  height: 56rpx;
-  line-height: 56rpx;
+  height: 64rpx;
+  line-height: 64rpx;
   padding: 0 20rpx;
   font-size: 26rpx;
   border-radius: 8rpx;
@@ -496,7 +595,7 @@ function goBack(): void {
 
 .card {
   margin: 16rpx 24rpx;
-  padding: 24rpx;
+  padding: 20rpx 24rpx;
   border-radius: 12rpx;
   background: #ffffff;
 }
@@ -504,12 +603,12 @@ function goBack(): void {
 .card-row {
   display: flex;
   justify-content: space-between;
-  padding: 10rpx 0;
-  font-size: 26rpx;
+  padding: 8rpx 0;
+  font-size: 30rpx;
 }
 
 .label {
-  color: #6b7280;
+  color: #4b5563;
 }
 
 .value {
@@ -523,8 +622,8 @@ function goBack(): void {
 }
 
 .progress-bar {
-  height: 8rpx;
-  margin: 0 24rpx 16rpx;
+  height: 12rpx;
+  margin: 0 24rpx 12rpx;
   border-radius: 4rpx;
   background: #e5e6eb;
   overflow: hidden;
@@ -546,24 +645,56 @@ function goBack(): void {
 .empty-hint {
   padding: 48rpx 24rpx;
   text-align: center;
-  color: #9ca3af;
+  color: #6b7280;
   font-size: 26rpx;
 }
 
 .scan-item {
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12rpx;
-  padding: 18rpx 20rpx;
+  margin-bottom: 8rpx;
+  padding: 12rpx 16rpx;
   border-radius: 8rpx;
   background: #ffffff;
-  border-left: 6rpx solid #1677ff;
+  border-left: 8rpx solid #1677ff;
 }
 
-.scan-item.deleted {
-  border-left-color: #d1d5db;
-  opacity: 0.5;
+.swipe-delete-btn {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 120rpx;
+  background: #e74c3c;
+  color: #ffffff;
+  font-size: 28rpx;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scan-item-content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  background: #ffffff;
+  transition: transform 0.2s ease;
+}
+
+.scan-item.deleted,
+.deleted-item {
+  height: 44rpx;
+  padding: 0 20rpx;
+  background: #f9fafb;
+  border-left: 6rpx solid #9ca3af;
+  opacity: 0.6;
+}
+.deleted-label {
+  font-size: 24rpx;
+  color: #6b7280;
 }
 
 .scan-item-left {
@@ -572,64 +703,66 @@ function goBack(): void {
 }
 
 .scan-code {
-  font-size: 28rpx;
+  font-size: 30rpx;
   color: #1f2329;
   font-weight: 600;
 }
 
 .scan-meta {
   margin-top: 4rpx;
-  font-size: 22rpx;
+  font-size: 24rpx;
   color: #6b7280;
 }
 
-.scan-item-right {
-  padding: 4rpx 12rpx;
-}
-
-.delete-btn {
-  font-size: 36rpx;
-  color: #e74c3c;
-  font-weight: 700;
-}
-
+/* 底部栏 — 两行布局 */
 .bottom-bar {
   display: flex;
-  align-items: center;
-  gap: 12rpx;
-  padding: 16rpx 24rpx 32rpx;
+  flex-direction: column;
+  gap: 8rpx;
+  padding: 12rpx 24rpx 24rpx;
   background: #ffffff;
   border-top: 1px solid #eef0f4;
 }
-
 .barcode-input {
-  flex: 1;
-  height: 76rpx;
+  height: 88rpx;
   padding: 0 20rpx;
   border: 1px solid #d9dee8;
   border-radius: 8rpx;
   background: #f6f7f9;
-  font-size: 28rpx;
+  font-size: 32rpx;
 }
-
+.bottom-btns {
+  display: flex;
+  gap: 12rpx;
+}
 .btn-confirm,
 .btn-camera {
+  flex: 1;
   margin: 0;
-  height: 76rpx;
-  padding: 0 28rpx;
-  line-height: 76rpx;
+  height: 80rpx;
+  line-height: 80rpx;
   border-radius: 8rpx;
-  font-size: 26rpx;
+  font-size: 30rpx;
 }
-
 .btn-confirm {
   background: #1677ff;
   color: #ffffff;
 }
-
 .btn-camera {
   background: #f0f2f5;
   color: #1f2329;
+}
+
+/* 键盘弹出时回退到单行 */
+.bottom-bar-row { flex-direction: row; gap: 12rpx; }
+.bottom-bar-row .barcode-input { flex: 1; height: 76rpx; font-size: 28rpx; }
+.bottom-bar-row .btn-confirm,
+.bottom-bar-row .btn-camera { flex: 1; height: 76rpx; font-size: 26rpx; }
+
+/* 输入失败闪烁 */
+.input-error {
+  border-color: #e74c3c !important;
+  transition: border-color 0.15s ease;
 }
 
 .overlay {
@@ -643,43 +776,51 @@ function goBack(): void {
 }
 
 .popup {
-  width: 640rpx;
-  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  width: 680rpx;
+  max-height: 85vh;
   border-radius: 16rpx;
   background: #ffffff;
-  overflow: hidden;
 }
-
 .popup-header {
+  flex-shrink: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 28rpx 32rpx;
   border-bottom: 1px solid #eef0f4;
+  border-radius: 16rpx 16rpx 0 0;
 }
-
 .popup-title {
   font-size: 32rpx;
   font-weight: 700;
   color: #1f2329;
 }
-
-.popup-close {
-  font-size: 40rpx;
-  color: #9ca3af;
-}
-
 .popup-body {
+  flex: 1;
+  min-height: 0;
   padding: 24rpx 32rpx 32rpx;
-  max-height: 55vh;
   overflow-y: auto;
+  font-size: 28rpx;
+}
+.popup-close-btn {
+  flex-shrink: 0;
+  height: 80rpx;
+  line-height: 80rpx;
+  background: #f0f2f5;
+  color: #1f2329;
+  font-size: 30rpx;
+  font-weight: 600;
+  text-align: center;
+  border-radius: 0 0 16rpx 16rpx;
 }
 
 .summary-row {
   display: flex;
   justify-content: space-between;
   padding: 12rpx 0;
-  font-size: 26rpx;
+  font-size: 28rpx;
   color: #1f2329;
 }
 
@@ -690,13 +831,13 @@ function goBack(): void {
 }
 
 .product-stat {
-  padding: 14rpx 0;
-  border-bottom: 1px solid #f6f7f9;
+  padding: 16rpx 0;
+  border-bottom: 1px solid #eef0f4;
 }
 
 .ps-code {
   display: block;
-  font-size: 26rpx;
+  font-size: 28rpx;
   color: #1f2329;
   font-weight: 600;
 }
@@ -704,13 +845,13 @@ function goBack(): void {
 .ps-qty {
   display: block;
   margin-top: 4rpx;
-  font-size: 24rpx;
+  font-size: 26rpx;
   color: #6b7280;
 }
 
 .ps-diff {
   display: block;
   margin-top: 2rpx;
-  font-size: 24rpx;
+  font-size: 26rpx;
 }
 </style>

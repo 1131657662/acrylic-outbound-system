@@ -57,8 +57,16 @@ async function handleSync(): Promise<void> {
 }
 
 function handleLogout(): void {
-  clearSession();
-  uni.reLaunch({ url: '/pages/login/index' });
+  uni.showModal({
+    title: '确认退出',
+    content: '退出后需重新登录。',
+    success: (res) => {
+      if (res.confirm) {
+        clearSession();
+        uni.reLaunch({ url: '/pages/login/index' });
+      }
+    },
+  });
 }
 
 function refreshInfo(): void {
@@ -83,7 +91,7 @@ function refreshInfo(): void {
 
 .panel {
   margin-bottom: 24rpx;
-  padding: 24rpx;
+  padding: 28rpx 24rpx;
   border-radius: 12rpx;
   background: #ffffff;
 }
@@ -91,10 +99,10 @@ function refreshInfo(): void {
 .row {
   display: flex;
   justify-content: space-between;
-  padding: 16rpx 0;
+  padding: 20rpx 0;
   border-bottom: 1px solid #eef0f4;
   color: #1f2329;
-  font-size: 26rpx;
+  font-size: 28rpx;
 }
 
 .row:last-child {
@@ -102,7 +110,7 @@ function refreshInfo(): void {
 }
 
 .label {
-  color: #6b7280;
+  color: #4b5563;
 }
 
 .value {
@@ -111,7 +119,16 @@ function refreshInfo(): void {
   word-break: break-all;
 }
 
+button[type="primary"] {
+  height: 88rpx;
+}
+
 .logout {
   margin-top: 20rpx;
+  height: 88rpx;
+  line-height: 88rpx;
+  background: #fff1f0;
+  border-color: #e74c3c;
+  color: #e74c3c;
 }
 </style>

@@ -14,6 +14,11 @@ class InventoryController extends Controller {
   async sync() {
     this.ctx.body = await this.ctx.service.inventory.syncAvailable();
   }
+
+  async list() {
+    const query = this.ctx.query || {};
+    this.ctx.body = await this.ctx.service.inventory.list(query);
+  }
 }
 
 module.exports = InventoryController;

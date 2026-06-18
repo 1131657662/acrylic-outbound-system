@@ -35,6 +35,46 @@ class InventoryService extends Service {
     });
   }
 
+  async list(query) {
+    const where = {};
+    if (query.status) where.status = query.status;
+    if (query.product_code) where.product_code = query.product_code;
+
+    let sql = 'SELECT * FROM inventory';
+    const params = [];
+    const conditions = [];
+
+    if (where.status) {
+      conditions.push('status = ?');
+      params.push(where.status);
+    }
+    if (where.product_code) {
+      conditions.push('product_code LIKE ?');
+      params.push(`%${where.product_code}%`);
+    }
+    if (query.roll_code) {
+      conditions.push('roll_code LIKE ?');
+      params.push(`%${query.roll_code}%`);
+    }
+    if (query.model) {
+      conditions.push('model LIKE ?');
+      params.push(`%${query.model}%`);
+    }
+
+    if (conditions.length) sql += ' WHERE ' + conditions.join(' AND ');
+    sql += ' ORDER BY product_code ASC, roll_code ASC';
+
+    if (query.limit) {
+      const limit = parseInt(query.limit);
+      if (limit > 0) {
+        sql += ' LIMIT ?';
+        params.push(limit);
+      }
+    }
+
+    return await this.app.mysql.query(sql, params);
+  }
+
   async activeShippedCodes() {
     const rows = await this.app.mysql.query(
       'SELECT DISTINCT roll_code FROM order_items WHERE status = ?',

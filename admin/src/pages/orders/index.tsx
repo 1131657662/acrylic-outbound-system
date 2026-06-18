@@ -1,5 +1,5 @@
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import type { ActionType } from '@ant-design/pro-components';
+import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { Button, Popconfirm, Space, Tag, message } from 'antd';
 import { history } from '@umijs/max';
 import { useRef } from 'react';
@@ -15,40 +15,71 @@ const statusText: Record<OrderRow['status'], string> = {
   cancelled: '已取消',
 };
 
+const statusValueEnum = {
+  pending: { text: '待扫码' },
+  scanning: { text: '扫码中' },
+  completed: { text: '已完成' },
+  cancelled: { text: '已取消' },
+};
+
 export default function OrdersPage() {
   const actionRef = useRef<ActionType>();
+
+  const columns: ProColumns<OrderRow>[] = [
+    { title: '订单号', dataIndex: 'order_no', copyable: true },
+    { title: '车牌号', dataIndex: 'vehicle_no' },
+    { title: '计划件数', dataIndex: 'total_planned_qty', width: 100 },
+    { title: '计划重量', dataIndex: 'total_planned_weight', width: 120 },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      width: 100,
+      valueEnum: statusValueEnum,
+      render: (_, row) => <Tag>{statusText[row.status]}</Tag>,
+    },
+    { title: '创建时间', dataIndex: 'created_at', width: 180, hideInSearch: true },
+    {
+      title: '操作',
+      width: 240,
+      hideInSearch: true,
+      render: (_, row) => <OrderActions order={row} reload={() => actionRef.current?.reload()} />,
+    },
+  ];
 
   return (
     <PageContainer title="订单列表" extra={<Button type="primary" onClick={() => history.push('/orders/create')}>创建订单</Button>}>
       <ProTable<OrderRow>
         actionRef={actionRef}
         rowKey="id"
-        search={false}
+        columns={columns}
         request={requestOrders}
-        columns={[
-          { title: '订单号', dataIndex: 'order_no' },
-          { title: '车牌号', dataIndex: 'vehicle_no' },
-          { title: '计划件数', dataIndex: 'total_planned_qty', width: 100 },
-          { title: '计划重量', dataIndex: 'total_planned_weight', width: 120 },
-          { title: '状态', dataIndex: 'status', width: 100, render: (_, row) => <Tag>{statusText[row.status]}</Tag> },
-          { title: '创建时间', dataIndex: 'created_at', width: 180 },
-          {
-            title: '操作',
-            width: 240,
-            render: (_, row) => <OrderActions order={row} reload={() => actionRef.current?.reload()} />,
-          },
-        ]}
+        search={{ labelWidth: 'auto' }}
+        dateFormatter="string"
       />
     </PageContainer>
   );
 }
 
-async function requestOrders() {
+async function requestOrders(params: Record<string, unknown>) {
   if (!getToken()) {
     history.push('/login');
     return { data: [], success: true };
   }
-  const data = await fetchOrders();
+  let data = await fetchOrders();
+
+  // Client-side filtering (API doesn't support search params)
+  if (params.order_no) {
+    const kw = String(params.order_no).toLowerCase();
+    data = data.filter(o => o.order_no.toLowerCase().includes(kw));
+  }
+  if (params.vehicle_no) {
+    const kw = String(params.vehicle_no).toLowerCase();
+    data = data.filter(o => o.vehicle_no.toLowerCase().includes(kw));
+  }
+  if (params.status) {
+    data = data.filter(o => o.status === params.status);
+  }
+
   return { data, success: true };
 }
 

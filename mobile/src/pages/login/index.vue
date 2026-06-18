@@ -14,7 +14,10 @@
       </view>
       <view class="field">
         <text class="label">密码</text>
-        <input v-model="form.password" class="input" password placeholder="请输入密码" />
+        <view class="input-wrap">
+          <input v-model="form.password" class="input" :password="!showPassword" placeholder="请输入密码" />
+          <text class="pw-toggle" @click="showPassword = !showPassword">{{ showPassword ? '隐藏' : '显示' }}</text>
+        </view>
       </view>
 
       <button type="primary" :loading="loading" @click="handleLogin">登录</button>
@@ -28,6 +31,7 @@ import { login } from '../../services/auth';
 import { getApiBase, getToken } from '../../utils/storage';
 
 const loading = ref(false);
+const showPassword = ref(false);
 const form = reactive({
   apiBase: getApiBase(),
   username: 'admin',
@@ -58,12 +62,12 @@ async function handleLogin(): Promise<void> {
 <style>
 .page {
   min-height: 100vh;
-  padding: 72rpx 32rpx;
+  padding: 48rpx 28rpx;
   background: #f6f7f9;
 }
 
 .panel {
-  padding: 36rpx 28rpx;
+  padding: 32rpx 28rpx;
   border-radius: 12rpx;
   background: #ffffff;
 }
@@ -80,7 +84,7 @@ async function handleLogin(): Promise<void> {
   margin-top: 12rpx;
   margin-bottom: 36rpx;
   color: #6b7280;
-  font-size: 26rpx;
+  font-size: 28rpx;
 }
 
 .field {
@@ -90,15 +94,33 @@ async function handleLogin(): Promise<void> {
 .label {
   display: block;
   margin-bottom: 10rpx;
-  color: #374151;
-  font-size: 26rpx;
+  color: #4b5563;
+  font-size: 28rpx;
 }
 
 .input {
-  height: 88rpx;
+  height: 96rpx;
   padding: 0 20rpx;
   border: 1px solid #d9dee8;
   border-radius: 8rpx;
   background: #ffffff;
+}
+
+.input-wrap {
+  position: relative;
+}
+
+.pw-toggle {
+  position: absolute;
+  right: 20rpx;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 26rpx;
+  color: #1677ff;
+  padding: 12rpx;
+}
+
+button[type="primary"] {
+  height: 88rpx;
 }
 </style>

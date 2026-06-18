@@ -15,9 +15,7 @@
     "egg-mysql": "^4.0.0",
     "egg-scripts": "^2.17.0",
     "exceljs": "^4.4.0",
-    "jsonwebtoken": "^9.0.2",
-    "nanoid": "^3.3.7",
-    "safe-stable-stringify": "^2.5.0"
+    "jsonwebtoken": "^9.0.2"
   },
   "devDependencies": {
     "egg-bin": "^6.10.0",
