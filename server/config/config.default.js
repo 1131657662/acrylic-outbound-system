@@ -22,6 +22,12 @@ module.exports = appInfo => {
     expiresIn: '12h',
   };
 
+  config.bodyParser = {
+    enable: true,
+    jsonLimit: '1mb',
+    formLimit: '1mb',
+  };
+
   config.mysql = {
     client: {
       host: process.env.DB_HOST || '127.0.0.1',
